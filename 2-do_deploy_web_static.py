@@ -1,44 +1,35 @@
 #!/usr/bin/python3
-""""Fabric script that distributes an archive to web servers"""
-
-from fabric.api import *
+#  Fabric script that generates a .tgz archive from the
+# contents of the web_static folder of your AirBnB Clone repo
+# using the function do_pack
 import os
+from fabric.api import run, put, env
 
-env.hosts = ['3.235.198.120', '3.239.50.204']
+env.hosts = ['54.175.170.98', '54.90.18.2']
+env.user = "ubuntu"
 
 
 def do_deploy(archive_path):
-    """Archive distributor"""
-    try:
+    """Create a tar gzipped archive of the directory web_static."""
+    if os.path.exists(archive_path) is False:
+        return False
+    else:
         try:
-            if os.path.exists(archive_path):
-                arc_tgz = archive_path.split("/")
-                arg_save = arc_tgz[1]
-                arc_tgz = arc_tgz[1].split('.')
-                arc_tgz = arc_tgz[0]
-
-                """Upload archive to the server"""
-                put(archive_path, '/tmp')
-
-                """Save folder paths in variables"""
-                uncomp_fold = '/data/web_static/releases/{}'.format(arc_tgz)
-                tmp_location = '/tmp/{}'.format(arg_save)
-
-                """Run remote commands on the server"""
-                run('mkdir -p {}'.format(uncomp_fold))
-                run('tar -xvzf {} -C {}'.format(tmp_location, uncomp_fold))
-                run('rm {}'.format(tmp_location))
-                run('mv {}/web_static/* {}'.format(uncomp_fold, uncomp_fold))
-                run('rm -rf {}/web_static'.format(uncomp_fold))
-                run('rm -rf /data/web_static/current')
-                run('ln -sf {} /data/web_static/current'.format(uncomp_fold))
-                run('sudo service nginx restart')
-                return True
-            else:
-                print('File does not exist')
-                return False
-        except Exception as err:
-            print(err)
+            put(archive_path, "/tmp/")
+            """ putting the file to .tgz """
+            file_name = archive_path.split("/")[1]
+            """ splitting .tgz """
+            file_name2 = file_name.split(".")[0]
+            """ spliting archivo """
+            final_name = "/data/web_static/releases/" + file_name2 + "/"
+            run("mkdir -p " + final_name)
+            run("tar -xzf /tmp/" + file_name + " -C " + final_name)
+            run("rm /tmp/" + file_name)
+            run("mv " + final_name + "web_static/* " + final_name)
+            run("rm -rf i" + final_name + "web_static")
+            run("rm -rf /data/web_static/current")
+            run("ln -s " + final_name + " /data/web_static/current")
+            print("New version deployed!")
+            return True
+        except Exception:
             return False
-    except Exception:
-        print('Error')
