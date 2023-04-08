@@ -1,88 +1,57 @@
- Configures a web server for deployment of web_static.
+#!/usr/bin/python3
+""" Creates and distributes an archive to web servers,
+using created function deploy and pack"""
+from fabric.api import *
+import os
+do_pack = __import__('1-pack_web_static').do_pack
+# do_deploy = __import__('2-do_deploy_web_static').do_deploy
 
-# Nginx configuration file
-$nginx_conf = "server {
-    listen 80 default_server;
-    listen [::]:80 default_server;
-    add_header X-Served-By ${hostname};
-    root   /var/www/html;
-    index  index.html index.htm;
-    location /hbnb_static {
-        alias /data/web_static/current;
-        index index.html index.htm;
-    }
-    location /redirect_me {
-        return 301 http://cuberule.com/;
-    }
-    error_page 404 /404.html;
-    location /404 {
-      root /var/www/html;
-      internal;
-    }
-}"
+env.hosts = ['3.235.198.120', '3.239.50.204']
 
-package { 'nginx':
-  ensure   => 'present',
-  provider => 'apt'
-} ->
 
-file { '/data':
-  ensure  => 'directory'
-} ->
+def deploy():
+    """Pack and deploy all file """
+    file_path = do_pack()
+    if not file_path:
+        return False
 
-file { '/data/web_static':
-  ensure => 'directory'
-} ->
+    run_cmd = do_deploy(file_path)
+    return run_cmd
 
-file { '/data/web_static/releases':
-  ensure => 'directory'
-} ->
 
-file { '/data/web_static/releases/test':
-  ensure => 'directory'
-} ->
+def do_deploy(archive_path):
+    """Archive distributor"""
+    try:
+        try:
+            if os.path.exists(archive_path):
+                arc_tgz = archive_path.split("/")
+                arg_save = arc_tgz[1]
+                arc_tgz = arc_tgz[1].split('.')
+                arc_tgz = arc_tgz[0]
 
-file { '/data/web_static/shared':
-  ensure => 'directory'
-} ->
+                """Upload archive to the server"""
+                put(archive_path, '/tmp')
 
-file { '/data/web_static/releases/test/index.html':
-  ensure  => 'present',
-  content => "Holberton School Puppet\n"
-} ->
+                """Save folder paths in variables"""
+                uncomp_fold = '/data/web_static/releases/{}'.format(arc_tgz)
+                tmp_location = '/tmp/{}'.format(arg_save)
 
-file { '/data/web_static/current':
-  ensure => 'link',
-  target => '/data/web_static/releases/test'
-} ->
-
-exec { 'chown -R ubuntu:ubuntu /data/':
-  path => '/usr/bin/:/usr/local/bin/:/bin/'
-}
-
-file { '/var/www':
-  ensure => 'directory'
-} ->
-
-file { '/var/www/html':
-  ensure => 'directory'
-} ->
-
-file { '/var/www/html/index.html':
-  ensure  => 'present',
-  content => "Holberton School Nginx\n"
-} ->
-
-file { '/var/www/html/404.html':
-  ensure  => 'present',
-  content => "Ceci n'est pas une page\n"
-} ->
-
-file { '/etc/nginx/sites-available/default':
-  ensure  => 'present',
-  content => $nginx_conf
-} ->
-
-exec { 'nginx restart':
-  path => '/etc/init.d/'
-}
+                """Run remote commands on the server"""
+                run('mkdir -p {}'.format(uncomp_fold))
+                run('tar -xvzf {} -C {}'.format(tmp_location, uncomp_fold))
+                run('rm {}'.format(tmp_location))
+                run('mv {}/web_static/* {}'.format(uncomp_fold, uncomp_fold))
+                run('rm -rf {}/web_static'.format(uncomp_fold))
+                run('rm -rf /data/web_static/current')
+                run('ln -sf {} /data/web_static/current'.format(uncomp_fold))
+                run('sudo service nginx restart')
+                return True
+            else:
+                print('File does not exist')
+                return False
+        except Exception as err:
+            print(err)
+            return False
+    except Exception:
+        print('Error')
+        return False
